@@ -73,7 +73,36 @@ Chrome Store: *pending approval*
    ```bash
    python -m playwright install chromium
    ```
-3. Run the login helper to capture your Bearer token:
+3. Install FFmpeg (required for audio processing):
+
+   **Windows:**
+   ```bash
+   choco install ffmpeg
+   ```
+   Or with Windows Package Manager:
+   ```bash
+   winget install ffmpeg
+   ```
+
+   **macOS:**
+   ```bash
+   brew install ffmpeg
+   ```
+
+   **Linux (Ubuntu/Debian):**
+   ```bash
+   sudo apt-get install ffmpeg
+   ```
+
+   **Linux (Fedora/RHEL):**
+   ```bash
+   sudo yum install ffmpeg
+   ```
+
+   **Other Linux Distributions:**
+   Check your package manager or visit [ffmpeg.org](https://ffmpeg.org/download.html)
+
+4. Run the login helper to capture your Bearer token:
 
    ```bash
    cd PythonScript
