@@ -295,8 +295,64 @@ def main():
     args = parse_args()
     if not args.location or not args.topic_id:
         interactive_flow(args)
-    else:
-        print("Location or Topic ID Args are missing")
+        return
+
+    # Non-interactive: download all items for the given location + topic-id
+    vm_file = SAVE_DIR / f"viewmodel_{args.location}_{args.topic_id}.json"
+    if not vm_file.exists():
+        print(f"No viewmodel found for {args.location} topic {args.topic_id}. Run Headripper.py first.")
+        return
+
+    with open(vm_file, encoding="utf-8") as f:
+        data = json.load(f)
+
+    items = parse_items_from_viewmodel(data)
+    if not items:
+        print("No items found in this topic.")
+        return
+
+    token = load_bearer()
+    headers = build_headers(client="Android")
+    headers["Authorization"] = f"Bearer {token}"
+
+    for item in items:
+        title = item.get("title", "audio").replace("/", "-")
+        folder = title
+        out_dir = AUDIO_DIR / args.location / folder
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        if item.get("category") and item.get("category").upper() == "SLEEPCAST":
+            variants = fetch_variants(item.get("contentId"), headers,
+                                      content_type=item.get("category") or "None",
+                                      args=args)
+        else:
+            variants = fetch_variants(item.get("entityId"), headers,
+                                      content_type=item.get("category") or "None",
+                                      args=args)
+
+        if not variants:
+            out_path = out_dir / f"{title}.{args.container}"
+            download_audio(item.get("contentId"), out_path, headers, container=args.container)
+            continue
+
+        if args.variant == "manual":
+            v = variants[0]
+            vid = v.get("id")
+            out_path = out_dir / f"{title}-{vid}.{args.container}"
+            download_audio(vid, out_path, headers, url=v.get("url"))
+        else:
+            for v in variants:
+                vid = v.get("id")
+                narr = v.get("narrator", "")
+                dur = v.get("duration", "")
+                fname = f"{title}"
+                if narr:
+                    fname += f"-{narr}"
+                if dur:
+                    fname += f"-{dur}min"
+                fname += f"-{vid}.{args.container}"
+                out_path = out_dir / fname
+                download_audio(vid, out_path, headers, url=v.get("url"))
 
 
 if __name__ == "__main__":
