@@ -3,11 +3,28 @@ import json
 import requests
 from tqdm import tqdm
 from pathlib import Path
+import re
+import unicodedata
 from headspace_headers import build_headers
 from headspace_variants import fetch_sleepcast_variants_v3
 
 SAVE_DIR = Path("Saved")
 AUDIO_DIR = SAVE_DIR / "Audio"
+
+
+def sanitize_filename(s: str) -> str:
+    if not s:
+        return "untitled"
+    s = str(s)
+    s = unicodedata.normalize('NFKD', s)
+    s = s.replace('\u2019', "'").replace('\u2018', "'").replace('\u201c', '"').replace('\u201d', '"')
+    # remove reserved and control characters
+    s = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '', s)
+    # collapse whitespace
+    s = re.sub(r'\s+', ' ', s).strip()
+    # strip trailing dots and spaces (Windows incompatibility)
+    s = s.rstrip(' .')
+    return s
 
 SEED_TOPICS = {
     "SLEEP": [
@@ -243,7 +260,7 @@ def interactive_flow(args):
     headers = build_headers(client="Android")
     headers["Authorization"] = f"Bearer {token}"
 
-    title = item.get("title", "audio").replace("/", "-")
+    title = sanitize_filename(item.get("title", "audio"))
     folder = title
     out_dir = AUDIO_DIR / location / folder
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -258,8 +275,8 @@ def interactive_flow(args):
                             args=args)
     if not variants:
         print("Not varient audio. Downloading directly...")
-        out_path = out_dir / f"{title}.mp3"
-        download_audio(item["contentId"], out_path, headers)
+        out_path = out_dir / f"{title}.{args.container}"
+        download_audio(item["contentId"], out_path, headers, container=args.container)
 
     if args.variant == "manual":
         print("\n== Variants ==")
@@ -274,19 +291,19 @@ def interactive_flow(args):
         except:
             v = variants[0]
         vid = v.get("id")
-        out_path = out_dir / f"{title}-{vid}.mp3"
+        out_path = out_dir / f"{title}-{vid}.{args.container}"
         download_audio(vid, out_path, headers, url=v.get("url"))
     else:
         for v in variants:
             vid = v.get("id")
-            narr = v.get("narrator", "")
+            narr = sanitize_filename(v.get("narrator", ""))
             dur = v.get("duration", "")
             fname = f"{title}"
             if narr:
                 fname += f"-{narr}"
             if dur:
                 fname += f"-{dur}min"
-            fname += f"-{vid}.mp3"
+            fname += f"-{vid}.{args.container}"
             out_path = out_dir / fname
             download_audio(vid, out_path, headers, url=v.get("url"))
 
@@ -316,7 +333,7 @@ def main():
     headers["Authorization"] = f"Bearer {token}"
 
     for item in items:
-        title = item.get("title", "audio").replace("/", "-")
+        title = sanitize_filename(item.get("title", "audio"))
         folder = title
         out_dir = AUDIO_DIR / args.location / folder
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -343,7 +360,7 @@ def main():
         else:
             for v in variants:
                 vid = v.get("id")
-                narr = v.get("narrator", "")
+                narr = sanitize_filename(v.get("narrator", ""))
                 dur = v.get("duration", "")
                 fname = f"{title}"
                 if narr:
