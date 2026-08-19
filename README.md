@@ -147,13 +147,28 @@ python3 Download_Audio.py
 * Lets you browse and pick tracks
 * Saves files to `Saved/Audio/[Location]/[Category]/[Title-Author-Length].mp3`
 
-Batch mode:
+Batch mode (unattended — no prompts, downloads everything in one go):
 
 ```bash
 python3 Download_Audio.py --location SLEEP --topic-id 41 --container mp3
 ```
 
 This parses the cached viewmodel and downloads all tracks in that topic.
+
+To grab every cached topic for a location in a single run:
+
+```bash
+python3 Download_Audio.py --location SLEEP --all-topics --container mp3
+```
+
+An item that fails (expired token, missing media, API hiccup) is reported and
+skipped so the rest of the batch keeps going; a count of downloaded vs. skipped
+items is printed at the end. Add `--debug` to see the raw API URLs and responses.
+
+> `Headripper.py` runs the downloader for you when it finishes building the
+> catalog, passing along your `--location` / `--topic-id` / `--all-topics`
+> selection, so that stays unattended too. Use `--no-download` if you only want
+> the catalog.
 
 ---
 
