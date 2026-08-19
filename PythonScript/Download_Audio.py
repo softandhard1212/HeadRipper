@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import requests
 from tqdm import tqdm
 from pathlib import Path
@@ -228,10 +229,13 @@ def parse_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("--location", choices=["SLEEP", "MEDITATE", "FOCUS"])
     ap.add_argument("--topic-id")
+    ap.add_argument("--all-topics", action="store_true",
+                    help="Download every cached topic for --location in one unattended run")
     ap.add_argument("--container", choices=["mp3", "aac"], default="mp3")
     ap.add_argument("--variant", choices=["auto", "manual"], default="auto")
     ap.add_argument("--sleep-date", help="SLEEPCASTS ONLY - Override date for sleepcast version (YYYY-MM-DD)")
     ap.add_argument("--include-split", action="store_true", help="SLEEPCASTS ONLY - Download voice+ambience+mixed instead of mixed only")
+    ap.add_argument("--debug", action="store_true", help="Print raw API URLs and responses")
     return ap.parse_args()
 
 def interactive_flow(args):
@@ -308,56 +312,35 @@ def interactive_flow(args):
             download_audio(vid, out_path, headers, url=v.get("url"))
 
 
-def main():
-    args = parse_args()
-    if not args.location or not args.topic_id:
-        interactive_flow(args)
-        return
-
-    # Non-interactive: download all items for the given location + topic-id
-    vm_file = SAVE_DIR / f"viewmodel_{args.location}_{args.topic_id}.json"
-    if not vm_file.exists():
-        print(f"No viewmodel found for {args.location} topic {args.topic_id}. Run Headripper.py first.")
-        return
-
-    with open(vm_file, encoding="utf-8") as f:
-        data = json.load(f)
-
-    items = parse_items_from_viewmodel(data)
-    if not items:
-        print("No items found in this topic.")
-        return
-
-    token = load_bearer()
-    headers = build_headers(client="Android")
-    headers["Authorization"] = f"Bearer {token}"
-
+def download_items(items, location, headers, args):
+    """Download every item in a topic. Returns (downloaded, skipped)."""
+    done = skipped = 0
     for item in items:
         title = sanitize_filename(item.get("title", "audio"))
         folder = title
-        out_dir = AUDIO_DIR / args.location / folder
-        out_dir.mkdir(parents=True, exist_ok=True)
+        out_dir = AUDIO_DIR / location / folder
 
-        if item.get("category") and item.get("category").upper() == "SLEEPCAST":
-            variants = fetch_variants(item.get("contentId"), headers,
-                                      content_type=item.get("category") or "None",
-                                      args=args)
-        else:
-            variants = fetch_variants(item.get("entityId"), headers,
-                                      content_type=item.get("category") or "None",
-                                      args=args)
+        try:
+            if item.get("category") and item.get("category").upper() == "SLEEPCAST":
+                variants = fetch_variants(item.get("contentId"), headers,
+                                          content_type=item.get("category") or "None",
+                                          args=args)
+            else:
+                variants = fetch_variants(item.get("entityId"), headers,
+                                          content_type=item.get("category") or "None",
+                                          args=args)
 
-        if not variants:
-            out_path = out_dir / f"{title}.{args.container}"
-            download_audio(item.get("contentId"), out_path, headers, container=args.container)
-            continue
+            out_dir.mkdir(parents=True, exist_ok=True)
 
-        if args.variant == "manual":
-            v = variants[0]
-            vid = v.get("id")
-            out_path = out_dir / f"{title}-{vid}.{args.container}"
-            download_audio(vid, out_path, headers, url=v.get("url"))
-        else:
+            if not variants:
+                out_path = out_dir / f"{title}.{args.container}"
+                download_audio(item.get("contentId"), out_path, headers, container=args.container)
+                done += 1
+                continue
+
+            if args.variant == "manual":
+                variants = variants[:1]
+
             for v in variants:
                 vid = v.get("id")
                 narr = sanitize_filename(v.get("narrator", ""))
@@ -370,6 +353,59 @@ def main():
                 fname += f"-{vid}.{args.container}"
                 out_path = out_dir / fname
                 download_audio(vid, out_path, headers, url=v.get("url"))
+            done += 1
+        except Exception as e:
+            # One bad item shouldn't end an unattended batch run.
+            skipped += 1
+            print(f"[warn] skipping '{title}': {e}")
+    return done, skipped
+
+
+def main():
+    args = parse_args()
+    if args.debug:
+        os.environ["HR_DEBUG_HTTP"] = "1"
+
+    if not args.location or not (args.topic_id or args.all_topics):
+        interactive_flow(args)
+        return
+
+    # Non-interactive: download all items for the given location + topic(s)
+    if args.all_topics:
+        vm_files = sorted(load_viewmodels(args.location))
+        if not vm_files:
+            print(f"No viewmodels found for {args.location}. Run Headripper.py first.")
+            return
+    else:
+        vm_file = SAVE_DIR / f"viewmodel_{args.location}_{args.topic_id}.json"
+        if not vm_file.exists():
+            print(f"No viewmodel found for {args.location} topic {args.topic_id}. Run Headripper.py first.")
+            return
+        vm_files = [vm_file]
+
+    token = load_bearer()
+    if not token:
+        return
+    headers = build_headers(client="Android")
+    headers["Authorization"] = f"Bearer {token}"
+
+    total_done = total_skipped = 0
+    for vm_file in vm_files:
+        topic_id = vm_file.stem.split("_")[-1]
+        with open(vm_file, encoding="utf-8") as f:
+            data = json.load(f)
+
+        items = parse_items_from_viewmodel(data)
+        if not items:
+            print(f"[skip] topic {topic_id}: no items found.")
+            continue
+
+        print(f"\n== Topic {topic_id}: {len(items)} items ==")
+        done, skipped = download_items(items, args.location, headers, args)
+        total_done += done
+        total_skipped += skipped
+
+    print(f"\n[done] {total_done} item(s) downloaded, {total_skipped} skipped.")
 
 
 if __name__ == "__main__":

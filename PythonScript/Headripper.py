@@ -462,7 +462,7 @@ def main() -> int:
     ap.add_argument("--topic-id", help="Process a single topic id; omit to show all topics or use --all-topics")
     ap.add_argument("--all-topics", action="store_true", help="Process all topics under the location")
     ap.add_argument("--max-items", type=int, default=None, help="Limit items per topic (testing)")
-    ap.add_argument("--container", choices=["aac", "mp3"], default="aac", help="Download container format")
+    ap.add_argument("--container", choices=["aac", "mp3"], default=None, help="Download container format (default: aac)")
 
     ap.add_argument("--probe", dest="do_probe", action="store_true", help="Enable a token/http probe before API calls")
     ap.add_argument("--no-probe", dest="do_probe", action="store_false", help="Disable the probe")
@@ -478,6 +478,7 @@ def main() -> int:
     ap.add_argument("--relogin", action="store_true", help="Force fresh login to refresh HSNGJWT")
     ap.add_argument("--headless-browser", action="store_true", help="Headless playwright login (not recommended)")
     ap.add_argument("--no-index", action="store_true", help="Skip merged index file")
+    ap.add_argument("--no-download", action="store_true", help="Only build the catalog; skip the Download_Audio.py step")
     ap.add_argument("--categories-file", default=str(SAVED_DIR / "categories_overrides.json"),
                     help="Optional JSON file for category overrides (array for current location or map of location->array)")
     ap.add_argument("--debug-http", action="store_true", help="Verbose HTTP debug (sets HR_DEBUG_HTTP=1)")
@@ -526,13 +527,29 @@ def main() -> int:
         auth_mode=chosen,
         max_items=args.max_items,
         make_index=(not args.no_index),
-        container=args.container,
+        container=args.container or "aac",
         categories_file=Path(args.categories_file) if args.categories_file else None,
     )
 
     ok("Done with loading the catalog.")
-    
-    subprocess.run([sys.executable, "Download_Audio.py"])
+
+    if args.no_download:
+        info("Skipping download step (--no-download).")
+        return 0
+
+    # Hand the same selection to the downloader so the batch run stays unattended
+    # instead of dropping into the interactive picker.
+    downloader = str(Path(__file__).resolve().parent / "Download_Audio.py")
+    dl_cmd = [sys.executable, downloader, "--location", args.location]
+    if args.all_topics:
+        dl_cmd.append("--all-topics")
+    elif args.topic_id:
+        dl_cmd += ["--topic-id", str(args.topic_id)]
+    if args.container:
+        dl_cmd += ["--container", args.container]
+    if args.debug_http:
+        dl_cmd.append("--debug")
+    subprocess.run(dl_cmd)
     return 0
 
 if __name__=="__main__":

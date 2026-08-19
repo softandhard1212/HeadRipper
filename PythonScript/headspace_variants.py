@@ -1,12 +1,17 @@
 # headspace_variants.py
 from __future__ import annotations
 from typing import Any, Dict, Iterable, List
-import hashlib, re
+import hashlib, os, re
 import requests
 from datetime import date
 
 AUDIO_EXT = (".mp3", ".m4a", ".aac", ".wav", ".flac", ".ogg")
 HLS_HINTS = ("m3u8", "application/vnd.apple.mpegurl")
+
+
+def _debug() -> bool:
+    """Verbose request/response dumps, enabled with HR_DEBUG_HTTP=1 (or --debug)."""
+    return os.getenv("HR_DEBUG_HTTP") == "1"
 
 def _iter_nodes(obj: Any) -> Iterable[tuple[list[str], Any]]:
     def rec(node, path):
@@ -143,21 +148,22 @@ def fetch_sleepcast_variants_v3(content_id: str | int, headers: dict, *,
 
     url = (f"https://api.prod.headspace.com/content-interface/v3/playable-assets"
            f"?contentId={content_id}&date={target_date}&parentContentId=&audioDescriptionEnabled=false")
-    print(url)
-    input("Press Enter to continue...")
+    if _debug():
+        print(f"[dbg] v3 playable-assets: {url}")
     resp = requests.get(url, headers=headers)
     if not resp.ok:
         raise RuntimeError(f"[err] v3 playable-assets failed for {content_id}: {resp.status_code}")
     data = resp.json()
-    print(data)
-    input("Press Enter to continue...")
+    if _debug():
+        print(f"[dbg] v3 response: {data}")
     variants = []
     for entry in data:
         mid = entry.get("mediaItemId")
         vid = entry.get("id")            # e.g. "SC-408-VOICE-73313"
         track_type = (entry.get("metadata") or {}).get("trackType") or "UNKNOWN"
 
-        print(f"v3 MediaID = {mid}")
+        if _debug():
+            print(f"[dbg] v3 MediaID = {mid}")
         if not mid:
             continue
 
