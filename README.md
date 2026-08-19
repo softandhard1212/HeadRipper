@@ -66,12 +66,12 @@ Chrome Store: *pending approval*
 1. Clone this repo and install dependencies:
 
    ```bash
-   pip install -r requirements.txt
+   python3 -m pip install -r requirements.txt
    ```
 2. Install Playwright:
 
    ```bash
-   python -m playwright install chromium
+   python3 -m playwright install chromium
    ```
 3. Install FFmpeg (required for audio processing):
 
@@ -106,7 +106,7 @@ Chrome Store: *pending approval*
 
    ```bash
    cd PythonScript
-   python Browser_Login.py
+   python3 Browser_Login.py
    ```
 
    * A browser will open; log in normally.
@@ -120,7 +120,7 @@ Chrome Store: *pending approval*
 **Step 1 – Build Catalogs**
 
 ```bash
-python Headripper.py --location SLEEP --all-topics
+python3 Headripper.py --location SLEEP --all-topics
 ```
 
 * `--location` → `SLEEP`, `MEDITATE`, or `FOCUS`
@@ -130,7 +130,7 @@ python Headripper.py --location SLEEP --all-topics
 Or just fetch one topic:
 
 ```bash
-python Headripper.py --location SLEEP --topic-id 41
+python3 Headripper.py --location SLEEP --topic-id 41
 ```
 
 ---
@@ -140,7 +140,7 @@ python Headripper.py --location SLEEP --topic-id 41
 Interactive mode:
 
 ```bash
-python Download_Audio.py
+python3 Download_Audio.py
 ```
 
 * Shows only the locations & topics you’ve already cached
@@ -150,7 +150,7 @@ python Download_Audio.py
 Batch mode:
 
 ```bash
-python Download_Audio.py --location SLEEP --topic-id 41 --container mp3
+python3 Download_Audio.py --location SLEEP --topic-id 41 --container mp3
 ```
 
 This parses the cached viewmodel and downloads all tracks in that topic.
@@ -166,7 +166,7 @@ By default, you’ll get the **Mixed** track.
 You can override this with extra flags:
 
 ```bash
-python Download_Audio.py --sleepcast --all-tracks
+python3 Download_Audio.py --sleepcast --all-tracks
 ```
 
 Options:

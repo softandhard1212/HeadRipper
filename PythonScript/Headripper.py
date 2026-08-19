@@ -532,7 +532,7 @@ def main() -> int:
 
     ok("Done with loading the catalog.")
     
-    subprocess.run(["python", "Download_Audio.py"])
+    subprocess.run([sys.executable, "Download_Audio.py"])
     return 0
 
 if __name__=="__main__":
